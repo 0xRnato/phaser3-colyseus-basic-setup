@@ -7,10 +7,23 @@ export class MyRoom extends Room<MyRoomState> {
   onCreate(options: any) {
     this.setState(new MyRoomState());
 
-    this.onMessage("type", (client, message) => {
-      //
-      // handle "type" message
-      //
+    // handle player input
+    this.onMessage(0, (client, input) => {
+      // get reference to the player who sent the message
+      const player = this.state.players.get(client.sessionId)
+      const velocity = 2;
+
+      if (input.left) {
+        player.x -= velocity
+      } else if (input.right) {
+        player.x += velocity
+      }
+
+      if (input.up) {
+        player.y -= velocity
+      } else if (input.down) {
+        player.y += velocity
+      }
     });
   }
 
