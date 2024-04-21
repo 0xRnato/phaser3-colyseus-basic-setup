@@ -36,9 +36,12 @@ export class GameScene extends Phaser.Scene {
 
         // listening for server updates
         player.onChange(() => {
-          // update local position immediately
-          entity.x = player.x
-          entity.y = player.y
+          //
+          // do not update local position immediately
+          // we're going to LERP them during the render loop.
+          //
+          entity.setData('serverX', player.x)
+          entity.setData('serverY', player.y)
         })
         // Alternative, listening to individual properties:
         // player.listen("x", (newX, prevX) => console.log(newX, prevX));
@@ -57,7 +60,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  update() {
+  update(time: number, delta: number): void {
     // skip loop if not connected with room yet.
     if (!this.room) { return; }
 
@@ -67,6 +70,15 @@ export class GameScene extends Phaser.Scene {
     this.inputPayload.up = this.cursorKeys.up.isDown
     this.inputPayload.down = this.cursorKeys.down.isDown
     this.room.send(0, this.inputPayload)
+
+    for (let sessionId in this.playerEntities) {
+      // interpolate all players entities
+      const entity = this.playerEntities[sessionId]
+      const { serverX, serverY } = entity.data.values
+
+      entity.x = Phaser.Math.Linear(entity.x, serverX, 0.2)
+      entity.y = Phaser.Math.Linear(entity.y, serverY, 0.2)
+    }
   }
 }
 
