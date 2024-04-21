@@ -1,28 +1,58 @@
-import { Room, Client } from "@colyseus/core";
-import { MyRoomState, Player } from "./schema/MyRoomState";
+import { Room, Client } from "colyseus";
+import { InputData, MyRoomState, Player } from "./schema/MyRoomState";
 
 export class MyRoom extends Room<MyRoomState> {
-  maxClients = 4;
+  fixedTimeStep = 1000 / 60;
 
   onCreate(options: any) {
     this.setState(new MyRoomState());
 
-    // handle player input
+    // set map dimensions
+    this.state.mapWidth = 800;
+    this.state.mapHeight = 600;
+
     this.onMessage(0, (client, input) => {
-      // get reference to the player who sent the message
-      const player = this.state.players.get(client.sessionId)
-      const velocity = 2;
+      // handle player input
+      const player = this.state.players.get(client.sessionId);
 
-      if (input.left) {
-        player.x -= velocity
-      } else if (input.right) {
-        player.x += velocity
+      // enqueue input to user input buffer.
+      player.inputQueue.push(input);
+    });
+
+    let elapsedTime = 0;
+    this.setSimulationInterval((deltaTime) => {
+      elapsedTime += deltaTime;
+
+      while (elapsedTime >= this.fixedTimeStep) {
+        elapsedTime -= this.fixedTimeStep;
+        this.fixedTick(this.fixedTimeStep);
       }
+    });
+  }
 
-      if (input.up) {
-        player.y -= velocity
-      } else if (input.down) {
-        player.y += velocity
+  fixedTick(timeStep: number) {
+    const velocity = 2;
+
+    this.state.players.forEach(player => {
+      let input: InputData;
+
+      // dequeue player inputs
+      while (input = player.inputQueue.shift()) {
+        if (input.left) {
+          player.x -= velocity;
+
+        } else if (input.right) {
+          player.x += velocity;
+        }
+
+        if (input.up) {
+          player.y -= velocity;
+
+        } else if (input.down) {
+          player.y += velocity;
+        }
+
+        player.tick = input.tick;
       }
     });
   }
@@ -30,25 +60,16 @@ export class MyRoom extends Room<MyRoomState> {
   onJoin(client: Client, options: any) {
     console.log(client.sessionId, "joined!");
 
-    const mapWidth = 800;
-    const mapHeight = 600;
-
-    // create Player instance
     const player = new Player();
+    player.x = Math.random() * this.state.mapWidth;
+    player.y = Math.random() * this.state.mapHeight;
 
-    // place Player at a random position
-    player.x = (Math.random() * mapWidth);
-    player.y = (Math.random() * mapHeight);
-
-    // place player in the map of players by its sessionId
-    // (client.sessionId is unique per connection!)
-    this.state.players.set(client.sessionId, player)
+    this.state.players.set(client.sessionId, player);
   }
 
   onLeave(client: Client, consented: boolean) {
     console.log(client.sessionId, "left!");
-
-    this.state.players.delete(client.sessionId)
+    this.state.players.delete(client.sessionId);
   }
 
   onDispose() {
